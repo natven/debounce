@@ -15,11 +15,12 @@ import (
 
 // New returns a debounced function that takes another functions as its argument.
 // This function will be called when the debounced function stops being called
-// for the given duration.
+// for the given duration, or has been called the given reps number of times.
+// Pass a negative integer to consider the duration only.
 // The debounced function can be invoked with different functions, if needed,
 // the last one will win.
-func New(after time.Duration) func(f func()) {
-	d := &debouncer{after: after}
+func New(after time.Duration, reps uint64) func(f func()) {
+	d := &debouncer{after: after, reps: reps}
 
 	return func(f func()) {
 		d.add(f)
@@ -30,6 +31,8 @@ type debouncer struct {
 	mu    sync.Mutex
 	after time.Duration
 	timer *time.Timer
+	reps  uint64
+	count uint64
 }
 
 func (d *debouncer) add(f func()) {
@@ -39,5 +42,12 @@ func (d *debouncer) add(f func()) {
 	if d.timer != nil {
 		d.timer.Stop()
 	}
-	d.timer = time.AfterFunc(d.after, f)
+
+	if d.count == d.reps {
+		f()
+		d.count = 0
+	} else {
+		d.count++
+		d.timer = time.AfterFunc(d.after, f)
+	}
 }
